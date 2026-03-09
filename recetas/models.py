@@ -46,3 +46,30 @@ class PasoPreparacion(models.Model):
 
     class Meta:
         ordering = ['orden']
+
+# --- Modelos nuevos incorporados que no estan en el PDF (09/03) ---
+
+class Comentario(models.Model):
+    receta = models.ForeignKey(Receta, related_name='comentarios', on_delete=models.CASCADE)
+    autor = models.ForeignKey(User, on_delete=models.CASCADE)
+    texto = models.TextField()
+    fecha_publicacion = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Comentario de {self.autor} en {self.receta}"
+
+class Valoracion(models.Model):
+    receta = models.ForeignKey(Receta, related_name='valoraciones', on_delete=models.CASCADE)
+    autor = models.ForeignKey(User, on_delete=models.CASCADE)
+    puntuacion = models.PositiveSmallIntegerField(choices=[(i, i) for i in range(1, 6)]) # Valoración de 1 a 5 estrellas
+
+    class Meta:
+        unique_together = ('receta', 'autor') # Evita que un usuario valore dos veces la misma receta
+
+class Favorito(models.Model):
+    user = models.ForeignKey(User, related_name='mis_favoritos', on_delete=models.CASCADE)
+    receta = models.ForeignKey(Receta, on_delete=models.CASCADE)
+    fecha_agregado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user', 'receta') # Hace que no puedas repetir favoritos
