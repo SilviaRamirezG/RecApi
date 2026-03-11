@@ -1,33 +1,58 @@
-from rest_framework import viewsets, permissions, status, authentication
+from django.contrib.auth.models import User
+from django.shortcuts import render
+from rest_framework import viewsets, generics, permissions, status, authentication
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from .models import Receta, Valoracion, Favorito
-from .serializers import RecetaSerializer, ValoracionSerializer, FavoritoActionSerializer 
 
+# Importaciones de tu proyecto
+from .models import Receta, Valoracion, Favorito
+from .serializers import (
+    RecetaSerializer, 
+    RegistroSerializer, 
+    ValoracionSerializer, 
+    FavoritoActionSerializer
+)
+
+# --- 1. PERMISOS PERSONALIZADOS ---
 class IsOwnerOrReadOnly(permissions.BasePermission):
-    def has_object_permission(self, request, view, obj):
+    """
+    Permite leer a todos, pero solo el dueño puede editar o eliminar.
+    """
+    def path_object_permission(self, request, view, obj):
         if request.method in permissions.SAFE_METHODS:
             return True
+        # Verifica que el campo 'creado_por' del modelo coincida con el usuario
         return obj.creado_por == request.user
 
+# --- 2. VISTA DE REGISTRO (Del Código 1) ---
+class RegistroView(generics.CreateAPIView):
+    """
+    Endpoint público para que nuevos usuarios se den de alta.
+    """
+    queryset = User.objects.all()
+    permission_classes = [permissions.AllowAny]
+    serializer_class = RegistroSerializer
+
+# --- 3. VIEWSET DE RECETAS (Del Código 2) ---
 class RecetaViewSet(viewsets.ModelViewSet):
+    """
+    Gestión completa de Recetas: CRUD + Valoraciones + Favoritos.
+    """
     queryset = Receta.objects.all()
     serializer_class = RecetaSerializer
     
+    # Combinación de autenticación y permisos
     authentication_classes = [
         authentication.SessionAuthentication, 
         authentication.BasicAuthentication
     ]
-    
     permission_classes = [permissions.IsAuthenticatedOrReadOnly, IsOwnerOrReadOnly]
 
-    # --- ACCIONES EXTRA ACTUALIZADAS ---
-
+    # --- ACCIÓN: VALORAR ---
     @action(detail=True, methods=['get', 'post'], serializer_class=ValoracionSerializer)
     def valorar(self, request, pk=None):
         receta = self.get_object()
         
-        # Permitimos GET para que la interfaz no de error 405
         if request.method == 'GET':
             val = Valoracion.objects.filter(autor=request.user, receta=receta).first()
             serializer = ValoracionSerializer(val) if val else ValoracionSerializer()
@@ -41,14 +66,14 @@ class RecetaViewSet(viewsets.ModelViewSet):
                 receta=receta,
                 defaults={'puntuacion': puntuacion}
             )
-            return Response({'status': 'Valoración guardada correctamente'}, status=status.HTTP_200_OK)
+            return Response({'status': 'Valoración guardada'}, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    # --- ACCIÓN: FAVORITOS ---
     @action(detail=True, methods=['get', 'post'], serializer_class=FavoritoActionSerializer)
     def favorito(self, request, pk=None):
         receta = self.get_object()
         
-        # Permitimos GET para que la interfaz no de error 405
         if request.method == 'GET':
             existe = Favorito.objects.filter(autor=request.user, receta=receta).exists()
             return Response({'es_favorito': existe})
