@@ -4,7 +4,7 @@ from django.shortcuts import render
 
 # recetas/views.py
 
-from rest_framework import viewsets
+from rest_framework import viewsets, permissions
 from .models import Receta
 from .serializers import RecetaSerializer
 
@@ -16,3 +16,4 @@ class RecetaViewSet(viewsets.ModelViewSet):
     """
     queryset = Receta.objects.all()
     serializer_class = RecetaSerializer
+    permission_classes = [permissions.IsAuthenticated]
