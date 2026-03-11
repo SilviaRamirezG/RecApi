@@ -1,4 +1,4 @@
-from rest_framework import viewsets, permissions, status
+from rest_framework import viewsets, permissions, status, authentication
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from .models import Receta, Valoracion, Favorito
@@ -13,11 +13,26 @@ class IsOwnerOrReadOnly(permissions.BasePermission):
 class RecetaViewSet(viewsets.ModelViewSet):
     queryset = Receta.objects.all()
     serializer_class = RecetaSerializer
+    
+    authentication_classes = [
+        authentication.SessionAuthentication, 
+        authentication.BasicAuthentication
+    ]
+    
     permission_classes = [permissions.IsAuthenticatedOrReadOnly, IsOwnerOrReadOnly]
 
-    @action(detail=True, methods=['post'], serializer_class=ValoracionSerializer)
+    # --- ACCIONES EXTRA ACTUALIZADAS ---
+
+    @action(detail=True, methods=['get', 'post'], serializer_class=ValoracionSerializer)
     def valorar(self, request, pk=None):
         receta = self.get_object()
+        
+        # Permitimos GET para que la interfaz no de error 405
+        if request.method == 'GET':
+            val = Valoracion.objects.filter(autor=request.user, receta=receta).first()
+            serializer = ValoracionSerializer(val) if val else ValoracionSerializer()
+            return Response(serializer.data)
+
         serializer = ValoracionSerializer(data=request.data)
         if serializer.is_valid():
             puntuacion = serializer.validated_data['puntuacion']
@@ -29,12 +44,16 @@ class RecetaViewSet(viewsets.ModelViewSet):
             return Response({'status': 'Valoración guardada correctamente'}, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    @action(detail=True, methods=['post'], serializer_class=FavoritoActionSerializer)
+    @action(detail=True, methods=['get', 'post'], serializer_class=FavoritoActionSerializer)
     def favorito(self, request, pk=None):
-        """Permite añadir/quitar de favoritos con el checkbox True/False"""
         receta = self.get_object()
-        serializer = FavoritoActionSerializer(data=request.data)
         
+        # Permitimos GET para que la interfaz no de error 405
+        if request.method == 'GET':
+            existe = Favorito.objects.filter(autor=request.user, receta=receta).exists()
+            return Response({'es_favorito': existe})
+
+        serializer = FavoritoActionSerializer(data=request.data)
         if serializer.is_valid():
             quiere_favorito = serializer.validated_data.get('es_favorito', True)
             
