@@ -2,7 +2,10 @@ from rest_framework import serializers
 from .models import Receta, Ingrediente, RecetaIngrediente, Comentario, Valoracion, Favorito
 from django.contrib.auth.models import User
 
-# 1. Serializador para los comentarios
+class FavoritoActionSerializer(serializers.Serializer):
+    es_favorito = serializers.BooleanField(default=True, help_text="Marca para añadir, desmarca para quitar.")
+    
+# comentarios
 class ComentarioSerializer(serializers.ModelSerializer):
     autor = serializers.ReadOnlyField(source='autor.username')
 
@@ -10,7 +13,7 @@ class ComentarioSerializer(serializers.ModelSerializer):
         model = Comentario
         fields = ['id', 'autor', 'texto', 'fecha_publicacion']
 
-# 2. Serializador para la valoración
+# valoración
 class ValoracionSerializer(serializers.ModelSerializer):
     autor = serializers.ReadOnlyField(source='autor.username')
 
@@ -18,7 +21,7 @@ class ValoracionSerializer(serializers.ModelSerializer):
         model = Valoracion
         fields = ['autor', 'puntuacion']
 
-# 3. Serializador para la tabla intermedia
+# tabla intermedia
 class RecetaIngredienteSerializer(serializers.ModelSerializer):
     nombre = serializers.CharField(source='ingrediente.nombre')
 
@@ -26,13 +29,11 @@ class RecetaIngredienteSerializer(serializers.ModelSerializer):
         model = RecetaIngrediente
         fields = ['nombre', 'cantidad']
 
-# 4. Serializador Principal de Receta
+# Principal de Receta
 class RecetaSerializer(serializers.ModelSerializer):
-    # Este campo muestra los ingredientes cuando CONSULTAS (GET)
+
     ingredientes = RecetaIngredienteSerializer(source='recetaingrediente_set', many=True, read_only=True)
     
-    # NUEVO: Este campo crea la casilla en el formulario HTML para ESCRIBIR
-    # Debes pegar algo como: [{"nombre": "Sal", "cantidad": "1 pizca"}]
     ingredientes_input = serializers.JSONField(write_only=True, required=False, help_text='Formato: [{"nombre": "...", "cantidad": "..."}]')
 
     comentarios = ComentarioSerializer(many=True, read_only=True)
