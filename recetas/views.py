@@ -1,8 +1,9 @@
 from django.contrib.auth.models import User
 from django.shortcuts import render
-from rest_framework import viewsets, generics, permissions, status, authentication
+from rest_framework import viewsets, generics, permissions, status, authentication, filters 
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from django_filters.rest_framework import DjangoFilterBackend
 
 # Importaciones de tu proyecto
 from .models import Receta, Valoracion, Favorito
@@ -13,25 +14,25 @@ from .serializers import (
     FavoritoActionSerializer
 )
 
-# --- 1. PERMISOS PERSONALIZADOS ---
+# --- PERMISOS PERSONALIZADOS ---
 class IsOwnerOrReadOnly(permissions.BasePermission):
     """
     Permite leer a todos, pero solo el dueño puede editar o eliminar.
     """
-    # CORRECCIÓN AQUÍ: El método correcto es has_object_permission (no path_object_permission)
+    
     def has_object_permission(self, request, view, obj):
         if request.method in permissions.SAFE_METHODS:
             return True
         # Verifica que el campo 'creado_por' del modelo coincida con el usuario
         return obj.creado_por == request.user
 
-# --- 2. VISTA DE REGISTRO ---
+# --- VISTA DE REGISTRO ---
 class RegistroView(generics.CreateAPIView):
     queryset = User.objects.all()
     permission_classes = [permissions.AllowAny]
     serializer_class = RegistroSerializer
 
-# --- 3. VIEWSET DE RECETAS ---
+# --- VIEWSET DE RECETAS ---
 class RecetaViewSet(viewsets.ModelViewSet):
     queryset = Receta.objects.all()
     serializer_class = RecetaSerializer
@@ -42,12 +43,22 @@ class RecetaViewSet(viewsets.ModelViewSet):
     ]
     permission_classes = [permissions.IsAuthenticatedOrReadOnly, IsOwnerOrReadOnly]
 
-    # --- ACCIÓN: VALORAR ---
+    # --- CONFIGURACIÓN DE FILTROS Y BÚSQUEDA ---
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    
+    # Parámetro ?dificultad=
+    filterset_fields = ['dificultad']
+    
+    # Parámetro ?search= (busca en título e ingredientes)
+    search_fields = ['titulo', 'ingredientes__nombre']
+
+    # --- EL RESTO DE TUS ACCIONES (valorar, favorito) SE MANTIENEN IGUAL ---
     @action(detail=True, methods=['get', 'post'], serializer_class=ValoracionSerializer)
     def valorar(self, request, pk=None):
         receta = self.get_object()
         
         if request.method == 'GET':
+            
             # Verificamos si el usuario ya valoró (solo si está autenticado)
             if request.user.is_authenticated:
                 val = Valoracion.objects.filter(autor=request.user, receta=receta).first()
@@ -66,14 +77,14 @@ class RecetaViewSet(viewsets.ModelViewSet):
             return Response({'status': 'Valoración guardada'}, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    # --- ACCIÓN: FAVORITOS ---
+    # --- FAVORITOS ---
     @action(detail=True, methods=['get', 'post'], serializer_class=FavoritoActionSerializer)
     def favorito(self, request, pk=None):
         receta = self.get_object()
         
         if request.method == 'GET':
             if request.user.is_authenticated:
-                # OJO: Cambié 'autor' por 'user' si tu modelo Favorito usa ese nombre
+                
                 existe = Favorito.objects.filter(user=request.user, receta=receta).exists()
                 return Response({'es_favorito': existe})
             return Response({"es_favorito": False})
@@ -83,7 +94,7 @@ class RecetaViewSet(viewsets.ModelViewSet):
             quiere_favorito = serializer.validated_data.get('es_favorito', True)
             
             if quiere_favorito:
-                # Asegúrate de si tu modelo Favorito usa el campo 'autor' o 'user'
+                
                 Favorito.objects.get_or_create(user=request.user, receta=receta)
                 return Response({'status': 'Añadido a favoritos'}, status=status.HTTP_201_CREATED)
             else:
