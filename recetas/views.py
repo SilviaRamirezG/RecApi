@@ -4,6 +4,7 @@ from rest_framework import viewsets, generics, permissions, status, authenticati
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework_simplejwt.authentication import JWTAuthentication
 
 # Importaciones de tu proyecto
 from .models import Receta, Valoracion, Favorito
@@ -38,6 +39,7 @@ class RecetaViewSet(viewsets.ModelViewSet):
     serializer_class = RecetaSerializer
     
     authentication_classes = [
+        JWTAuthentication,
         authentication.SessionAuthentication, 
         authentication.BasicAuthentication
     ]
